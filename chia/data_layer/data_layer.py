@@ -271,7 +271,7 @@ class DataLayer:
         )
 
         try:
-            downloaded = await download_data(self.data_store, subscription, singleton_record.root)
+            downloaded = await download_data(self.data_store, subscription, singleton_record.root, self.log)
         except asyncio.CancelledError:
             raise
         except aiohttp.client_exceptions.ClientConnectorError:

@@ -84,7 +84,7 @@ async def download_data_latest(
 
 
 async def download_data_history(
-    data_store: DataStore, tree_id: bytes32, target_hash: bytes32, URL: str, *, lock: bool = True
+    data_store: DataStore, tree_id: bytes32, target_hash: bytes32, URL: str, log: Any, *, lock: bool = True
 ) -> bool:
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(URL, timeout=180, heartbeat=60, max_msg_size=0) as ws:
@@ -115,6 +115,7 @@ async def download_data_history(
                 msg_json = json.loads(msg.data)
 
                 for row in msg_json:
+                    log.error(f"Doing operation {row}")
                     if row["is_insert"]:
                         await data_store.insert(
                             bytes.fromhex(row["key"]),
@@ -137,11 +138,16 @@ async def download_data_history(
                     current_root = await data_store.get_tree_root(tree_id, lock=lock)
                     if current_root.node_hash is None:
                         if row["hash"] != "None":
+                            log.error("Expected None received non empty hash.")
                             return False
                     else:
+                        expected = row["hash"]
+                        received = current_root.node_hash.hex()
+                        log.error(f"Expected: {expected} Received: {received}")
                         if current_root.node_hash.hex() != row["hash"]:
                             return False
                     existing_generation += 1
+                    log.error("MATCH!")
 
             await ws.send_str(json.dumps({"type": "close"}))
 
@@ -149,7 +155,7 @@ async def download_data_history(
 
 
 async def download_data(
-    data_store: DataStore, subscription: Subscription, target_hash: bytes32, *, lock: bool = True
+    data_store: DataStore, subscription: Subscription, target_hash: bytes32, log: Any, *, lock: bool = True
 ) -> bool:
     tree_id = subscription.tree_id
     ip = subscription.ip
@@ -162,5 +168,5 @@ async def download_data(
     if subscription.mode is DownloadMode.LATEST:
         return await download_data_latest(data_store, tree_id, target_hash, URL, lock=lock)
     elif subscription.mode is DownloadMode.HISTORY:
-        return await download_data_history(data_store, tree_id, target_hash, URL, lock=lock)
+        return await download_data_history(data_store, tree_id, target_hash, URL, log, lock=lock)
     return False
